@@ -1,5 +1,7 @@
 {
   "name": "Quermesse Digital - Gestão de Eventos",
   "description": "SaaS completo para gestão de quermesses, incluindo controle de ofícios, doações, leilões, estoque com receitas, PDV com impressão de fichas e balancete financeiro.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

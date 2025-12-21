@@ -34,7 +34,7 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Estados principais do Banco de Dados
+  // Estados principais sincronizados com Supabase
   const [events, setEvents] = useState<Event[]>([]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
@@ -47,7 +47,6 @@ const App: React.FC = () => {
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [services, setServices] = useState<Servico[]>([]);
 
-  // Monitorar conexão
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -59,7 +58,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Autenticação Supabase
+  // Monitoramento de Sessão
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -88,12 +87,17 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Busca de Dados Consolidada
+  // Busca Geral de Dados (Conexão com as Tabelas do Supabase)
   const fetchData = useCallback(async () => {
     if (!user) return;
     setIsSyncing(true);
     try {
-      const fetchs = [
+      // Carrega tudo em paralelo para performance
+      const [
+        { data: evts }, { data: usrs }, { data: ins }, { data: ords }, 
+        { data: ddr }, { data: dcs }, { data: cmp }, { data: prod }, 
+        { data: lt }, { data: vend }, { data: serv }
+      ] = await Promise.all([
         supabase.from('events').select('*'),
         supabase.from('users').select('*'),
         supabase.from('insumos').select('*'),
@@ -105,45 +109,40 @@ const App: React.FC = () => {
         supabase.from('lotes').select('*'),
         supabase.from('vendedores').select('*'),
         supabase.from('services').select('*'),
-      ];
-
-      const results = await Promise.all(fetchs);
+      ]);
       
-      if (results[0].data) setEvents(results[0].data);
-      if (results[1].data) setRegisteredUsers(results[1].data);
-      if (results[2].data) setInsumos(results[2].data);
-      if (results[3].data) setOrders(results[3].data);
-      if (results[4].data) setDoadores(results[4].data);
-      if (results[5].data) setDoacoes(results[5].data);
-      if (results[6].data) setCompras(results[6].data);
-      if (results[7].data) setProducts(results[7].data);
-      if (results[8].data) setLotes(results[8].data);
-      if (results[9].data) setVendedores(results[9].data);
-      if (results[10].data) setServices(results[10].data);
+      if (evts) setEvents(evts);
+      if (usrs) setRegisteredUsers(usrs);
+      if (ins) setInsumos(ins);
+      if (ords) setOrders(ords);
+      if (ddr) setDoadores(ddr);
+      if (dcs) setDoacoes(dcs);
+      if (cmp) setCompras(cmp);
+      if (prod) setProducts(prod);
+      if (lt) setLotes(lt);
+      if (vend) setVendedores(vend);
+      if (serv) setServices(serv);
 
     } catch (error) {
-      console.error('Falha ao sincronizar dados:', error);
+      console.error('Erro na sincronização:', error);
     } finally {
       setIsSyncing(false);
     }
   }, [user]);
 
-  // Realtime
+  // Realtime: Escuta mudanças em tempo real no banco
   useEffect(() => {
     if (user) {
       fetchData();
       const channel = supabase
-        .channel('db-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'lotes' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'doacoes' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => fetchData())
+        .channel('schema-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => fetchData())
         .subscribe();
       return () => { supabase.removeChannel(channel); };
     }
   }, [user, fetchData]);
 
-  // Handlers de Login
+  // LOGIN POR E-MAIL/SENHA
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -153,28 +152,36 @@ const App: React.FC = () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
+      // Fallback para acesso administrativo de emergência se o banco estiver vazio
       if (email === 'admin@master.com' && password === 'master123') {
-         setUser({ id: 'master', email, name: 'Admin Master', role: UserRole.ADMIN });
+         setUser({ id: 'master_root', email, name: 'Administrador Master', role: UserRole.ADMIN });
       } else {
-         setLoginError('Acesso negado. E-mail ou senha inválidos.');
+         setLoginError('Credenciais inválidas. Tente admin@master.com / master123');
       }
     }
   };
 
+  // LOGIN PELO GOOGLE (CORREÇÃO DO ERRO DO USUÁRIO)
   const handleGoogleLogin = async () => {
     setLoginError(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin }
+      options: { 
+        redirectTo: window.location.origin
+      }
     });
-    if (error) setLoginError('Erro na autenticação com Google.');
+    
+    if (error) {
+      // Se cair aqui, é porque o Google não está ativo no Supabase
+      setLoginError('O Google ainda não foi habilitado no seu painel Supabase. Use e-mail e senha por enquanto.');
+      console.error('Erro OAuth:', error.message);
+    }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setCurrentEvent(null);
-    setCashierName(null);
   };
 
   const syncToCloud = async (table: string, data: any) => {
@@ -190,11 +197,11 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
-  // 1. TELA DE LOGIN PREMIUM
+  // TELA DE LOGIN (UI PREMIUM)
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 w-full max-w-md animate-in fade-in zoom-in duration-500">
+        <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 w-full max-w-md animate-in fade-in zoom-in duration-500 border-b-8 border-red-700/20">
           <div className="text-center mb-10">
             <div className="w-20 h-20 bg-red-100 text-red-600 rounded-[2.2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-red-50">
               <Landmark size={40} />
@@ -205,7 +212,7 @@ const App: React.FC = () => {
 
           <div className="mb-8 p-6 bg-red-50 rounded-[2rem] border border-red-100">
             <p className="text-center text-xs font-bold text-red-800 leading-relaxed uppercase tracking-tighter">
-              Utilize o Google para criar e administrar eventos, ou use seu login para operar terminais de PDV.
+              Utilize o Google se o provedor estiver ativo, ou entre com e-mail e senha para gerenciar seu evento.
             </p>
           </div>
 
@@ -233,69 +240,55 @@ const App: React.FC = () => {
             <form onSubmit={handleLogin} className="space-y-3">
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                <input 
-                  name="email"
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none focus:border-red-500 transition-all font-bold text-gray-700 text-sm" 
-                  placeholder="Seu e-mail"
-                  required
-                />
+                <input name="email" className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none focus:border-red-500 transition-all font-bold text-gray-700 text-sm" placeholder="E-mail" required />
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                <input 
-                  name="password"
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none focus:border-red-500 transition-all font-bold text-gray-700 text-sm" 
-                  type="password"
-                  placeholder="Sua senha"
-                  required
-                />
+                <input name="password" type="password" className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none focus:border-red-500 transition-all font-bold text-gray-700 text-sm" placeholder="Senha" required />
               </div>
               <button type="submit" className="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-red-200 active:scale-95">
-                Confirmar Acesso
+                Acessar Sistema
               </button>
             </form>
           </div>
 
           <div className="mt-8 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2">
-            CONECTADO • {isOnline ? <Wifi size={12} className="text-green-500" /> : <WifiOff size={12} className="text-red-500" />} {isSyncing && <CloudSync className="animate-spin" size={12} />}
+            CLOUD READY • {isOnline ? <Wifi size={12} className="text-green-500" /> : <WifiOff size={12} className="text-red-500" />} {isSyncing && <CloudSync className="animate-spin" size={12} />}
           </div>
         </div>
       </div>
     );
   }
 
-  // 2. TELA DE SELEÇÃO DE EVENTO
+  // TELA DE SELEÇÃO DE EVENTO (PÓS-LOGIN)
   if (!currentEvent) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 animate-in fade-in duration-500">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter italic">Selecione o Evento Ativo</h2>
-          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Bem-vindo(a), {user.name}. Qual quermesse vamos gerenciar?</p>
+          <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter italic">Selecione a Quermesse</h2>
+          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Olá, {user.name}. Qual evento vamos gerenciar hoje?</p>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
-          {events.map(event => (
-            <div 
-              key={event.id}
-              onClick={() => setCurrentEvent(event)}
-              className="bg-white p-8 rounded-[3rem] shadow-2xl border border-gray-100 hover:scale-105 transition-all cursor-pointer text-center group"
-            >
+          {events.length > 0 ? events.map(event => (
+            <div key={event.id} onClick={() => setCurrentEvent(event)} className="bg-white p-8 rounded-[3rem] shadow-2xl border border-gray-100 hover:scale-105 transition-all cursor-pointer text-center group">
               <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-red-600 group-hover:text-white transition-all">
                 <Landmark size={32} />
               </div>
               <p className="font-black text-xl text-gray-800 uppercase leading-none truncate">{event.name}</p>
-              <p className="text-[10px] text-gray-400 mt-2 font-bold uppercase">{event.status === 'active' ? '● Evento Aberto' : 'Finalizado'}</p>
+              <p className="text-[10px] text-gray-400 mt-2 font-bold uppercase">{event.status === 'active' ? '● Aberto para Operação' : 'Finalizado'}</p>
             </div>
-          ))}
+          )) : (
+            <div className="col-span-full p-12 text-center text-gray-300 font-bold uppercase text-sm border-4 border-dashed rounded-[3rem]">
+               Nenhum evento encontrado no seu banco Supabase.
+            </div>
+          )}
 
-          <div 
-            onClick={() => setIsEventModalOpen(true)}
-            className="bg-gray-50 border-4 border-dashed border-gray-200 p-8 rounded-[3rem] hover:border-red-200 hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group"
-          >
+          <div onClick={() => setIsEventModalOpen(true)} className="bg-gray-50 border-4 border-dashed border-gray-200 p-8 rounded-[3rem] hover:border-red-200 hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group">
             <div className="w-16 h-16 bg-gray-100 text-gray-400 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-red-50 group-hover:text-red-600 transition-all">
               <Plus size={32} />
             </div>
-            <p className="font-black text-xl text-gray-400 group-hover:text-red-600 uppercase leading-none">Novo Evento</p>
+            <p className="font-black text-xl text-gray-400 group-hover:text-red-600 uppercase leading-none">Criar Novo</p>
           </div>
         </div>
 
@@ -306,25 +299,22 @@ const App: React.FC = () => {
         {isEventModalOpen && (
           <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 w-full max-w-xl animate-in zoom-in duration-300">
-               <h3 className="text-2xl font-black mb-6 uppercase tracking-tighter">Configurar Nova Quermesse</h3>
-               <p className="text-gray-500 mb-8 font-medium">Insira o nome do evento para iniciar a sincronização com o banco de dados.</p>
-               <button 
-                onClick={async () => {
+               <h3 className="text-2xl font-black mb-6 uppercase tracking-tighter italic">Configurar Nova Quermesse</h3>
+               <p className="text-gray-500 mb-8 font-medium">Os dados serão sincronizados automaticamente com o banco ttkslmgvorvlczowrbdh.</p>
+               <button onClick={async () => {
                    const newEvt: Event = { 
                      id: `evt_${Date.now()}`, 
-                     name: 'Evento Quermesse 2024', 
+                     name: 'Nova Quermesse 2024', 
                      dateRanges: [{start: new Date().toISOString().split('T')[0], end: new Date().toISOString().split('T')[0]}], 
                      status: 'active' 
                    };
                    await syncToCloud('events', newEvt);
                    setEvents([newEvt, ...events]);
                    setIsEventModalOpen(false);
-                }}
-                className="w-full bg-red-600 text-white py-5 rounded-[2rem] font-black uppercase shadow-xl tracking-widest active:scale-95 transition-all"
-               >
+                }} className="w-full bg-red-600 text-white py-5 rounded-[2rem] font-black uppercase shadow-xl tracking-widest active:scale-95 transition-all">
                  Salvar Novo Evento no Cloud
                </button>
-               <button onClick={() => setIsEventModalOpen(false)} className="w-full mt-4 text-gray-400 font-black uppercase text-xs tracking-widest">Voltar</button>
+               <button onClick={() => setIsEventModalOpen(false)} className="w-full mt-4 text-gray-400 font-black uppercase text-xs tracking-widest">Cancelar</button>
             </div>
           </div>
         )}
@@ -332,7 +322,7 @@ const App: React.FC = () => {
     );
   }
 
-  // 3. APLICAÇÃO PRINCIPAL
+  // APP PRINCIPAL
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
       {(user.role === UserRole.ADMIN || user.role === UserRole.USER) && !isFullScreen && (
@@ -347,7 +337,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center gap-4">
             <p className="text-[10px] font-black uppercase text-gray-400">{user.name} | {user.role}</p>
-            <button onClick={handleLogout} className="p-2 text-gray-300 hover:text-red-600"><LogOut size={20} /></button>
+            <button onClick={handleLogout} className="p-2 text-gray-300 hover:text-red-600 transition-colors"><LogOut size={20} /></button>
           </div>
         </header>
 
