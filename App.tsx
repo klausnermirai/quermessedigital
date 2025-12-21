@@ -48,16 +48,14 @@ const App: React.FC = () => {
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [services, setServices] = useState<Servico[]>([]);
 
-  // Escutar mudança de autenticação no Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        // Mapear usuário do Auth para nosso objeto User
         setUser({
           id: session.user.id,
           email: session.user.email || '',
-          name: session.user.user_metadata?.name || 'Administrador',
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
           role: session.user.user_metadata?.role || UserRole.ADMIN
         });
       }
@@ -69,7 +67,7 @@ const App: React.FC = () => {
         setUser({
           id: session.user.id,
           email: session.user.email || '',
-          name: session.user.user_metadata?.name || 'Administrador',
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
           role: session.user.user_metadata?.role || UserRole.ADMIN
         });
       } else {
@@ -121,14 +119,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if (user) {
       fetchData();
-      
       const mainChannel = supabase
         .channel('db-all-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'lotes' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'doacoes' }, () => fetchData())
         .subscribe();
-
       return () => { supabase.removeChannel(mainChannel); };
     }
   }, [user, fetchData]);
@@ -142,13 +138,19 @@ const App: React.FC = () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
-      // Caso não exista no Auth, tentamos login de emergência (modo demo)
       if (email === 'admin@master.com') {
          setUser({ id: '1', email, name: 'Admin Master', role: UserRole.ADMIN });
       } else {
-         setLoginError('Credenciais inválidas no Supabase.');
+         setLoginError('Acesso negado. Verifique e-mail/senha ou use o Google.');
       }
     }
+  };
+
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    });
+    if (error) setLoginError('Erro ao autenticar com Google.');
   };
 
   const handleLogout = async () => {
@@ -174,36 +176,64 @@ const App: React.FC = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 w-full max-w-md animate-in fade-in zoom-in">
+        <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 w-full max-w-md animate-in fade-in zoom-in duration-500">
           <div className="text-center mb-10">
-            <div className="w-20 h-20 bg-red-100 text-red-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
+            <div className="w-20 h-20 bg-red-100 text-red-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-red-50">
               <Landmark size={40} />
             </div>
             <h1 className="text-4xl font-black text-gray-900 tracking-tighter uppercase italic">Quermesse<span className="text-red-600">Digital</span></h1>
-            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Conectado ao seu Supabase</p>
+            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Plataforma de Gestão Paroquial</p>
+          </div>
+
+          <div className="mb-8 p-6 bg-red-50 rounded-3xl border border-red-100">
+            <p className="text-center text-xs font-bold text-red-800 leading-relaxed">
+              Se for criar um novo evento ou for o usuário criador, entre com o Google. Se for entrar em um evento já criado use seu login e senha.
+            </p>
           </div>
 
           {loginError && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2">
-              <AlertCircle size={16} /> {loginError}
+            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-2xl flex items-center gap-3 text-xs font-bold animate-pulse">
+              <AlertCircle size={18} /> {loginError}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-3">
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-              <input name="email" required className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl font-bold text-sm" placeholder="E-mail" />
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-              <input name="password" type="password" required className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl font-bold text-sm" placeholder="Senha" />
-            </div>
-            <button type="submit" className="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-sm uppercase shadow-xl hover:bg-red-700 active:scale-95 transition-all">
-              Acessar Painel
+          <div className="space-y-3">
+            <button 
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-100 p-4 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all text-gray-700 active:scale-95"
+            >
+              <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+              Entrar com Google
             </button>
-          </form>
-          <div className="mt-8 text-center text-gray-300 text-[10px] font-black uppercase tracking-widest">
-            {navigator.onLine ? <Wifi size={12} className="inline text-green-400 mr-1" /> : <WifiOff size={12} className="inline text-red-400 mr-1" />} Cloud Sync v2.5
+
+            <form onSubmit={handleLogin} className="space-y-3 pt-2">
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                <input 
+                  name="email"
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none focus:border-red-500 transition-all font-bold text-gray-700 text-sm" 
+                  placeholder="email@exemplo.com"
+                  required
+                />
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                <input 
+                  name="password"
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none focus:border-red-500 transition-all font-bold text-gray-700 text-sm" 
+                  type="password"
+                  placeholder="Sua senha"
+                  required
+                />
+              </div>
+              <button type="submit" className="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-red-200 active:scale-95">
+                Confirmar Acesso
+              </button>
+            </form>
+          </div>
+
+          <div className="mt-8 text-center text-gray-300 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+            v 2.5.0 • {isOnline ? <Wifi size={12} className="text-green-500" /> : <WifiOff size={12} className="text-red-500" />} {isSyncing && <CloudSync className="animate-spin" size={12} />}
           </div>
         </div>
       </div>
@@ -212,24 +242,63 @@ const App: React.FC = () => {
 
   if (!currentEvent) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
-        <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter italic mb-10">Selecione o Evento Ativo</h2>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 animate-in fade-in duration-500">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter italic">Selecione o Evento Ativo</h2>
+          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Olá, {user.name}. Qual quermesse vamos gerenciar hoje?</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
-          {events.map(event => (
-            <div key={event.id} onClick={() => setCurrentEvent(event)} className="bg-white p-8 rounded-[3rem] shadow-xl border border-gray-100 hover:scale-105 transition-all cursor-pointer text-center group">
+          {events.length > 0 ? events.map(event => (
+            <div 
+              key={event.id}
+              onClick={() => setCurrentEvent(event)}
+              className="bg-white p-8 rounded-[3rem] shadow-2xl border border-gray-100 hover:scale-105 transition-all cursor-pointer text-center group"
+            >
               <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-red-600 group-hover:text-white transition-all">
                 <Landmark size={32} />
               </div>
-              <p className="font-black text-xl text-gray-800 uppercase truncate">{event.name}</p>
+              <p className="font-black text-xl text-gray-800 uppercase leading-none truncate">{event.name}</p>
             </div>
-          ))}
-          <div onClick={() => setIsEventModalOpen(true)} className="bg-gray-50 border-4 border-dashed border-gray-200 p-8 rounded-[3rem] hover:border-red-200 cursor-pointer flex flex-col items-center justify-center group">
-             {/* Fix: Added Plus to lucide-react imports */}
-             <Plus className="text-gray-300 group-hover:text-red-600" size={32} />
-             <p className="font-black text-gray-300 group-hover:text-red-600 uppercase">Novo Evento</p>
+          )) : (
+            <div className="col-span-full text-center py-10">
+               <p className="text-gray-400 font-bold uppercase text-xs">Nenhum evento no Supabase. Crie um novo abaixo.</p>
+            </div>
+          )}
+
+          <div 
+            onClick={() => setIsEventModalOpen(true)}
+            className="bg-gray-50 border-4 border-dashed border-gray-200 p-8 rounded-[3rem] hover:border-red-200 hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group"
+          >
+            <div className="w-16 h-16 bg-gray-100 text-gray-400 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-red-50 group-hover:text-red-600 transition-all">
+              <Plus size={32} />
+            </div>
+            <p className="font-black text-xl text-gray-400 group-hover:text-red-600 uppercase leading-none">Novo Evento</p>
           </div>
         </div>
-        <button onClick={handleLogout} className="mt-12 text-gray-400 font-black uppercase text-[10px] tracking-widest hover:text-red-600">Sair da Conta</button>
+
+        <button onClick={handleLogout} className="mt-12 flex items-center gap-2 text-gray-400 hover:text-red-600 font-black uppercase text-[10px] tracking-widest transition-colors">
+          <LogOut size={16} /> Sair da conta
+        </button>
+
+        {isEventModalOpen && (
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-xl animate-in zoom-in duration-300">
+               <h3 className="text-2xl font-black mb-6 uppercase tracking-tighter">Configurar Novo Evento</h3>
+               <button 
+                onClick={async () => {
+                   const newEvt: Event = { id: `evt_${Date.now()}`, name: 'Nova Quermesse 2024', dateRanges: [{start: '2024-06-01', end: '2024-06-03'}], status: 'active' };
+                   await syncToCloud('events', newEvt);
+                   setEvents([...events, newEvt]);
+                   setIsEventModalOpen(false);
+                }}
+                className="w-full bg-red-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl tracking-widest"
+               >
+                 Salvar no Supabase
+               </button>
+               <button onClick={() => setIsEventModalOpen(false)} className="w-full mt-4 text-gray-400 font-black uppercase text-xs tracking-widest">Cancelar</button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
