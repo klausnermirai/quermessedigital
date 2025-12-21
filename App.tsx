@@ -35,7 +35,7 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Estados principais
+  // Estados principais do Banco de Dados
   const [events, setEvents] = useState<Event[]>([]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
@@ -49,25 +49,25 @@ const App: React.FC = () => {
   const [services, setServices] = useState<Servico[]>([]);
 
   useEffect(() => {
+    // Verificar sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
       if (session?.user) {
         setUser({
           id: session.user.id,
           email: session.user.email || '',
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuário',
           role: session.user.user_metadata?.role || UserRole.ADMIN
         });
       }
     });
 
+    // Escutar mudanças de estado (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
       if (session?.user) {
         setUser({
           id: session.user.id,
           email: session.user.email || '',
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuário',
           role: session.user.user_metadata?.role || UserRole.ADMIN
         });
       } else {
@@ -79,6 +79,7 @@ const App: React.FC = () => {
   }, []);
 
   const fetchData = useCallback(async () => {
+    if (!user) return;
     setIsSyncing(true);
     try {
       const fetchs = [
@@ -114,16 +115,15 @@ const App: React.FC = () => {
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
       fetchData();
       const mainChannel = supabase
-        .channel('db-all-changes')
+        .channel('db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'lotes' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'doacoes' }, () => fetchData())
         .subscribe();
       return () => { supabase.removeChannel(mainChannel); };
     }
@@ -138,19 +138,24 @@ const App: React.FC = () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
-      if (email === 'admin@master.com') {
-         setUser({ id: '1', email, name: 'Admin Master', role: UserRole.ADMIN });
+      // Fallback para usuário mestre de emergência
+      if (email === 'admin@master.com' && password === 'master123') {
+         setUser({ id: 'master', email, name: 'Admin Master', role: UserRole.ADMIN });
       } else {
-         setLoginError('Acesso negado. Verifique e-mail/senha ou use o Google.');
+         setLoginError('Credenciais incorretas ou usuário não cadastrado.');
       }
     }
   };
 
   const handleGoogleLogin = async () => {
+    setLoginError(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
     });
-    if (error) setLoginError('Erro ao autenticar com Google.');
+    if (error) setLoginError('Erro ao conectar com Google. Tente novamente.');
   };
 
   const handleLogout = async () => {
@@ -173,46 +178,53 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
+  // TELA DE LOGIN RESTAURADA
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 w-full max-w-md animate-in fade-in zoom-in duration-500">
           <div className="text-center mb-10">
-            <div className="w-20 h-20 bg-red-100 text-red-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-red-50">
+            <div className="w-20 h-20 bg-red-100 text-red-600 rounded-[2.2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-red-50">
               <Landmark size={40} />
             </div>
             <h1 className="text-4xl font-black text-gray-900 tracking-tighter uppercase italic">Quermesse<span className="text-red-600">Digital</span></h1>
-            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Plataforma de Gestão Paroquial</p>
+            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Gestão Inteligente para Eventos Paroquiais</p>
           </div>
 
-          <div className="mb-8 p-6 bg-red-50 rounded-3xl border border-red-100">
-            <p className="text-center text-xs font-bold text-red-800 leading-relaxed">
-              Se for criar um novo evento ou for o usuário criador, entre com o Google. Se for entrar em um evento já criado use seu login e senha.
+          <div className="mb-8 p-6 bg-red-50 rounded-[2rem] border border-red-100">
+            <p className="text-center text-xs font-bold text-red-800 leading-relaxed uppercase tracking-tighter">
+              Atenção: Se for criar um novo evento, use o Google. Se for operador de caixa, use seu login e senha.
             </p>
           </div>
 
           {loginError && (
-            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-2xl flex items-center gap-3 text-xs font-bold animate-pulse">
+            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-2xl flex items-center gap-3 text-xs font-bold animate-pulse">
               <AlertCircle size={18} /> {loginError}
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <button 
               onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-100 p-4 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all text-gray-700 active:scale-95"
+              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-100 p-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all text-gray-700 active:scale-95 shadow-sm"
             >
               <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
-              Entrar com Google
+              Acessar com Google
             </button>
 
-            <form onSubmit={handleLogin} className="space-y-3 pt-2">
+            <div className="relative flex py-3 items-center">
+                <div className="flex-grow border-t border-gray-100"></div>
+                <span className="flex-shrink mx-4 text-gray-300 text-[10px] font-black uppercase">Ou use E-mail</span>
+                <div className="flex-grow border-t border-gray-100"></div>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-3">
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                 <input 
                   name="email"
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl outline-none focus:border-red-500 transition-all font-bold text-gray-700 text-sm" 
-                  placeholder="email@exemplo.com"
+                  placeholder="Seu e-mail"
                   required
                 />
               </div>
@@ -227,28 +239,30 @@ const App: React.FC = () => {
                 />
               </div>
               <button type="submit" className="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-red-200 active:scale-95">
-                Confirmar Acesso
+                Entrar no Sistema
               </button>
             </form>
           </div>
 
-          <div className="mt-8 text-center text-gray-300 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2">
-            v 2.5.0 • {isOnline ? <Wifi size={12} className="text-green-500" /> : <WifiOff size={12} className="text-red-500" />} {isSyncing && <CloudSync className="animate-spin" size={12} />}
+          <div className="mt-8 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+            PRODUÇÃO V 2.5.0 • {isOnline ? <Wifi size={12} className="text-green-500" /> : <WifiOff size={12} className="text-red-500" />}
           </div>
         </div>
       </div>
     );
   }
 
+  // TELA DE SELEÇÃO DE EVENTO
   if (!currentEvent) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 animate-in fade-in duration-500">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter italic">Selecione o Evento Ativo</h2>
-          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Olá, {user.name}. Qual quermesse vamos gerenciar hoje?</p>
+          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-2">Logado como: {user.name}</p>
         </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
-          {events.length > 0 ? events.map(event => (
+          {events.map(event => (
             <div 
               key={event.id}
               onClick={() => setCurrentEvent(event)}
@@ -258,12 +272,9 @@ const App: React.FC = () => {
                 <Landmark size={32} />
               </div>
               <p className="font-black text-xl text-gray-800 uppercase leading-none truncate">{event.name}</p>
+              <p className="text-[10px] text-gray-400 mt-2 font-bold uppercase">{event.status === 'active' ? '● Ativo' : 'Finalizado'}</p>
             </div>
-          )) : (
-            <div className="col-span-full text-center py-10">
-               <p className="text-gray-400 font-bold uppercase text-xs">Nenhum evento no Supabase. Crie um novo abaixo.</p>
-            </div>
-          )}
+          ))}
 
           <div 
             onClick={() => setIsEventModalOpen(true)}
@@ -282,18 +293,24 @@ const App: React.FC = () => {
 
         {isEventModalOpen && (
           <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-xl animate-in zoom-in duration-300">
+            <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 w-full max-w-xl animate-in zoom-in duration-300">
                <h3 className="text-2xl font-black mb-6 uppercase tracking-tighter">Configurar Novo Evento</h3>
+               <p className="text-gray-500 mb-8 font-medium">Os dados serão sincronizados automaticamente com o Supabase.</p>
                <button 
                 onClick={async () => {
-                   const newEvt: Event = { id: `evt_${Date.now()}`, name: 'Nova Quermesse 2024', dateRanges: [{start: '2024-06-01', end: '2024-06-03'}], status: 'active' };
+                   const newEvt: Event = { 
+                     id: `evt_${Date.now()}`, 
+                     name: 'Evento Quermesse 2024', 
+                     dateRanges: [{start: new Date().toISOString().split('T')[0], end: new Date().toISOString().split('T')[0]}], 
+                     status: 'active' 
+                   };
                    await syncToCloud('events', newEvt);
-                   setEvents([...events, newEvt]);
+                   setEvents([newEvt, ...events]);
                    setIsEventModalOpen(false);
                 }}
-                className="w-full bg-red-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl tracking-widest"
+                className="w-full bg-red-600 text-white py-5 rounded-[2rem] font-black uppercase shadow-xl tracking-widest active:scale-95 transition-all"
                >
-                 Salvar no Supabase
+                 Criar Quermesse no Cloud
                </button>
                <button onClick={() => setIsEventModalOpen(false)} className="w-full mt-4 text-gray-400 font-black uppercase text-xs tracking-widest">Cancelar</button>
             </div>
@@ -303,6 +320,7 @@ const App: React.FC = () => {
     );
   }
 
+  // APLICAÇÃO PRINCIPAL (DASHBOARD/VIEWS)
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
       {(user.role === UserRole.ADMIN || user.role === UserRole.USER) && !isFullScreen && (
