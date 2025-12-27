@@ -124,6 +124,7 @@ export interface VendaAntecipadaItem {
   productId: string;
   quantidadePega: number;
   quantidadeVendida: number;
+  quantidadeDevolvida: number;
 }
 
 export interface Vendedor {

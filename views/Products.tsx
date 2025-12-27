@@ -1,31 +1,37 @@
 
 import React, { useState } from 'react';
-import { Plus, Utensils, Edit3, Trash2, List, X, Save, PlusCircle, MinusCircle, Hash, Target } from 'lucide-react';
+import { Plus, Utensils, Edit3, Trash2, List, X, Save, PlusCircle, MinusCircle, Hash, Target, Settings2, CheckCircle2 } from 'lucide-react';
 import { Product, ProductRecipe, Insumo } from '../types';
 
 interface ProductsProps {
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   insumos: Insumo[];
+  categories: string[];
+  setCategories: (newCats: string[]) => void;
 }
 
-const Products: React.FC<ProductsProps> = ({ products, setProducts, insumos }) => {
+const Products: React.FC<ProductsProps> = ({ products, setProducts, insumos, categories, setCategories }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   
   // Form states
   const [formName, setFormName] = useState('');
   const [formPreco, setFormPreco] = useState('');
-  const [formCategoria, setFormCategoria] = useState('Culinária');
+  const [formCategoria, setFormCategoria] = useState(categories[0] || '');
   const [formRendimento, setFormRendimento] = useState('100');
   const [formProjeção, setFormProjeção] = useState('500');
   const [formReceita, setFormReceita] = useState<ProductRecipe[]>([]);
+
+  // Category Manage state
+  const [newCatName, setNewCatName] = useState('');
 
   // Limpa/Reseta o formulário
   const resetForm = () => {
     setFormName('');
     setFormPreco('');
-    setFormCategoria('Culinária');
+    setFormCategoria(categories[0] || '');
     setFormRendimento('100');
     setFormProjeção('500');
     setFormReceita([]);
@@ -72,6 +78,22 @@ const Products: React.FC<ProductsProps> = ({ products, setProducts, insumos }) =
     resetForm();
   };
 
+  const handleAddCategory = () => {
+    if (!newCatName.trim()) return;
+    if (categories.includes(newCatName.trim())) {
+       alert('Categoria já existe');
+       return;
+    }
+    setCategories([...categories, newCatName.trim()]);
+    setNewCatName('');
+  };
+
+  const handleRemoveCategory = (cat: string) => {
+    if (confirm(`Remover a categoria "${cat}"? Produtos associados a ela ficarão sem categoria no filtro.`)) {
+      setCategories(categories.filter(c => c !== cat));
+    }
+  };
+
   const handleDelete = (id: string) => {
     if (confirm('Deseja realmente excluir este produto?')) {
       setProducts(products.filter(item => item.id !== id));
@@ -103,12 +125,20 @@ const Products: React.FC<ProductsProps> = ({ products, setProducts, insumos }) =
           <h3 className="text-xl font-bold text-gray-800">Produtos e Fichas Técnicas</h3>
           <p className="text-sm text-gray-500">Defina as receitas e a meta de venda para calcular o estoque necessário</p>
         </div>
-        <button 
-          onClick={handleOpenCreate}
-          className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-red-700 transition-colors shadow-lg shadow-red-100"
-        >
-          <Plus size={20} /> Novo Produto
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setIsCategoryModalOpen(true)}
+            className="bg-white border-2 border-gray-100 text-gray-500 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:border-red-500 hover:text-red-600 transition-all"
+          >
+            <Settings2 size={20} /> Categorias do PDV
+          </button>
+          <button 
+            onClick={handleOpenCreate}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-red-700 transition-colors shadow-lg shadow-red-100"
+          >
+            <Plus size={20} /> Novo Produto
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -173,15 +203,44 @@ const Products: React.FC<ProductsProps> = ({ products, setProducts, insumos }) =
             </div>
           </div>
         ))}
-        
-        <button 
-          onClick={handleOpenCreate}
-          className="h-full min-h-[220px] border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-red-400 hover:text-red-500 group transition-all"
-        >
-           <Plus size={40} className="mb-2 group-hover:scale-110 transition-transform" />
-           <span className="font-bold">Cadastrar Outro Produto</span>
-        </button>
       </div>
+
+      {/* Modal Gerenciar Categorias */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+               <h4 className="text-xl font-black text-gray-900 uppercase tracking-tighter italic">Categorias do PDV</h4>
+               <button onClick={() => setIsCategoryModalOpen(false)} className="text-gray-400"><X size={24} /></button>
+            </div>
+            <div className="p-8">
+              <div className="flex gap-2 mb-6">
+                <input 
+                  className="flex-1 p-4 bg-gray-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500" 
+                  placeholder="Nova categoria..." 
+                  value={newCatName}
+                  onChange={e => setNewCatName(e.target.value)}
+                  onKeyPress={e => e.key === 'Enter' && handleAddCategory()}
+                />
+                <button 
+                  onClick={handleAddCategory}
+                  className="bg-red-600 text-white p-4 rounded-2xl shadow-lg"
+                ><Plus size={20} /></button>
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                {categories.map(cat => (
+                  <div key={cat} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
+                    <span className="font-black text-xs uppercase text-gray-700">{cat}</span>
+                    <button onClick={() => handleRemoveCategory(cat)} className="text-gray-300 hover:text-red-500 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Novo/Editar Produto */}
       {isModalOpen && (
@@ -261,11 +320,10 @@ const Products: React.FC<ProductsProps> = ({ products, setProducts, insumos }) =
                     value={formCategoria}
                     onChange={(e) => setFormCategoria(e.target.value)}
                   >
-                    <option>Culinária</option>
-                    <option>Bebidas</option>
-                    <option>Doces</option>
-                    <option>Brinquedos</option>
-                    <option>Outros</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    {categories.length === 0 && <option value="">Nenhuma categoria cadastrada</option>}
                   </select>
                 </div>
               </div>

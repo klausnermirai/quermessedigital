@@ -30,7 +30,7 @@ const Config: React.FC<ConfigProps> = ({ users, setUsers, currentEvent, onUpdate
     const newUser: User = { id: Math.random().toString(36).substr(2, 4), name: newUserName, email: newUserEmail, role: newUserRole };
     setUsers(prev => [...prev, newUser]);
     setNewUserName(''); setNewUserEmail('');
-    alert('Usuário cadastrado com sucesso!');
+    alert('Convite para usuário registrado (Note: Ele deve se cadastrar com este e-mail).');
   };
 
   const handleUpdateEventDetails = (e: React.FormEvent) => {
@@ -116,30 +116,6 @@ const Config: React.FC<ConfigProps> = ({ users, setUsers, currentEvent, onUpdate
         </section>
 
         <section className="lg:col-span-2 space-y-8">
-          {/* Seção de Ajuda Técnica (Novidade) */}
-          <div className="bg-blue-50 p-8 rounded-[2.5rem] border border-blue-100 shadow-sm">
-            <h3 className="text-lg font-black text-blue-900 mb-4 uppercase tracking-tighter flex items-center gap-2">
-              <Info size={20} /> Configurações de API (Cloud)
-            </h3>
-            <div className="space-y-4">
-               <div className="bg-white p-4 rounded-2xl border border-blue-200">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Redirecionamento Google OAuth (URI)</p>
-                  <code className="text-xs font-bold text-blue-900 break-all bg-blue-50/50 p-2 rounded block">
-                    https://ttkslmgvorvlczowrbdh.supabase.co/auth/v1/callback
-                  </code>
-                  <p className="mt-2 text-[9px] text-blue-500 font-medium italic">Copie esta URL e cole no campo "URIs de redirecionamento autorizados" do Google Cloud Console.</p>
-               </div>
-               <div className="flex gap-4">
-                  <a href="https://console.cloud.google.com" target="_blank" className="flex-1 flex items-center justify-center gap-2 bg-white p-4 rounded-2xl border border-blue-200 text-blue-700 font-black text-[10px] uppercase hover:bg-blue-100 transition-all">
-                    Google Cloud <ExternalLink size={14} />
-                  </a>
-                  <a href="https://app.supabase.com" target="_blank" className="flex-1 flex items-center justify-center gap-2 bg-white p-4 rounded-2xl border border-blue-200 text-blue-700 font-black text-[10px] uppercase hover:bg-blue-100 transition-all">
-                    Supabase Panel <ExternalLink size={14} />
-                  </a>
-               </div>
-            </div>
-          </div>
-
           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-xl">
             <h3 className="text-xl font-black text-gray-900 mb-6 uppercase tracking-tighter">Equipe Cadastrada</h3>
             <div className="space-y-3">
