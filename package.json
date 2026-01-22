@@ -13,7 +13,8 @@
     "recharts": "^3.6.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "@supabase/supabase-js": "2.45.4"
+    "firebase": "^12.8.0",
+    "@supabase/supabase-js": "^2.91.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

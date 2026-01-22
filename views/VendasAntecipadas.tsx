@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Users, Plus, Search, UserPlus, X, Save, Edit3, Trash2, Tag, AlertCircle, ShoppingBag, Receipt, BarChart3, Package, DollarSign, RotateCcw, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Vendedor, Product, VendaAntecipadaItem } from '../types';
@@ -241,22 +240,22 @@ const VendasAntecipadas: React.FC<VendasAntecipadasProps> = ({ vendedores, setVe
                   <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
                      <p className="text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">Saída Total</p>
                      <p className="text-2xl font-black text-gray-800">
-                        {/* Fix: Explicitly type the reduce callback parameters to avoid 'unknown' type errors */}
-                        {(Object.values(consolidatedSales).reduce((acc: number, cur: any) => acc + cur.pego, 0))}
+                        {/* Fix: Explicitly type the reduce callback parameters and return type to avoid 'unknown' type errors */}
+                        {(Object.values(consolidatedSales).reduce<number>((acc, cur: any) => acc + cur.pego, 0))}
                      </p>
                   </div>
                   <div className="bg-green-50 p-6 rounded-3xl border border-green-100">
                      <p className="text-[10px] font-black text-green-600 uppercase mb-1 tracking-widest">Retorno Vendido</p>
                      <p className="text-2xl font-black text-green-700">
-                        {/* Fix: Explicitly type the reduce callback parameters to avoid 'unknown' type errors */}
-                        {(Object.values(consolidatedSales).reduce((acc: number, cur: any) => acc + cur.vendido, 0))}
+                        {/* Fix: Explicitly type the reduce callback parameters and return type to avoid 'unknown' type errors */}
+                        {(Object.values(consolidatedSales).reduce<number>((acc, cur: any) => acc + cur.vendido, 0))}
                      </p>
                   </div>
                   <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100">
                      <p className="text-[10px] font-black text-orange-600 uppercase mb-1 tracking-widest">Faturamento Externo</p>
                      <p className="text-2xl font-black text-orange-700">
-                        {/* Fix: Explicitly type the reduce callback parameters to avoid 'unknown' type errors */}
-                        R$ {(Object.values(consolidatedSales).reduce((acc: number, cur: any) => acc + cur.valor, 0)).toFixed(2)}
+                        {/* Fix: Explicitly type the reduce callback parameters and return type to avoid 'unknown' type errors */}
+                        R$ {(Object.values(consolidatedSales).reduce<number>((acc, cur: any) => acc + cur.valor, 0)).toFixed(2)}
                      </p>
                   </div>
                 </div>

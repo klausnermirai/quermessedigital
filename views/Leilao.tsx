@@ -2,7 +2,9 @@
 import React, { useState } from 'react';
 import { Gavel, Plus, Trophy, X, Save, DollarSign, User, Package, Trash2, History, Calendar, CheckCircle, Camera, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Lote } from '../types';
-import { supabase } from '../lib/supabase';
+import { db, storage } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, doc, setDoc, updateDoc } from 'firebase/firestore';
 
 interface LeilaoProps {
   lotes: Lote[];
@@ -31,20 +33,12 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
 
     setIsUploading(true);
     try {
-      const fileName = `${Date.now()}_${file.name}`;
-      const { data, error } = await supabase.storage
-        .from('prendas')
-        .upload(fileName, file);
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('prendas')
-        .getPublicUrl(fileName);
-
-      setNewLote(prev => ({ ...prev, fotoUrl: publicUrl }));
+      const storageRef = ref(storage, `prendas/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setNewLote(prev => ({ ...prev, fotoUrl: url }));
     } catch (err) {
-      alert('Erro ao subir foto. Verifique se o bucket "prendas" é público.');
+      alert('Erro ao subir foto no Firebase Storage.');
     } finally {
       setIsUploading(false);
     }
@@ -54,8 +48,9 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
     e.preventDefault();
     if (!newLote.item || !newLote.doador) return;
 
+    const id = `lote_${Date.now()}`;
     const entry: Lote = {
-      id: `lote_${Date.now()}`,
+      id,
       item: newLote.item,
       doador: newLote.doador,
       lanceInicial: parseFloat(newLote.lanceInicial) || 0,
@@ -64,11 +59,12 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
       fotoUrl: newLote.fotoUrl
     };
 
-    const { error } = await supabase.from('lotes').insert(entry);
-    if (!error) {
-      setLotes(prev => [entry, ...prev]);
+    try {
+      await setDoc(doc(db, "lotes", id), entry);
       setIsModalOpen(false);
       setNewLote({ item: '', doador: '', lanceInicial: '', tipo: 'Lance Único', fotoUrl: '' });
+    } catch (err) {
+      alert("Erro ao salvar lote no Firestore.");
     }
   };
 
@@ -77,17 +73,17 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
     if (!selectedLote) return;
 
     const updated = {
-      ...selectedLote,
       status: 'arrematado' as const,
       valorArremate: parseFloat(finalizeData.valor),
       arrematador: finalizeData.arrematador,
       dataArremate: new Date().toISOString()
     };
 
-    const { error } = await supabase.from('lotes').update(updated).eq('id', selectedLote.id);
-    if (!error) {
-      setLotes(prev => prev.map(l => l.id === selectedLote.id ? updated : l));
+    try {
+      await updateDoc(doc(db, "lotes", selectedLote.id), updated);
       setIsFinalizeModalOpen(false);
+    } catch (err) {
+      alert("Erro ao finalizar arremate.");
     }
   };
 
@@ -95,8 +91,8 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-xl font-bold text-gray-800 italic uppercase">Leilão Virtual</h3>
-          <p className="text-sm text-gray-500 font-medium">Gestão de Prendas com Fotos e Arremates</p>
+          <h3 className="text-xl font-bold text-gray-800 italic uppercase">Leilão Virtual Firebase</h3>
+          <p className="text-sm text-gray-500 font-medium">Gestão de Prendas e Arremates</p>
         </div>
         <button onClick={() => setIsModalOpen(true)} className="bg-red-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center gap-2">
           <Plus size={18} /> Novo Lote
@@ -105,10 +101,10 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {lotes.map(lote => (
-          <div key={lote.id} className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-xl hover:shadow-2xl transition-all group">
+          <div key={lote.id} className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-xl group">
             <div className="h-48 bg-gray-100 relative overflow-hidden">
                {lote.fotoUrl ? (
-                 <img src={lote.fotoUrl} alt={lote.item} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                 <img src={lote.fotoUrl} alt={lote.item} className="w-full h-full object-cover transition-transform duration-500" />
                ) : (
                  <div className="w-full h-full flex items-center justify-center text-gray-300">
                     <ImageIcon size={48} />
@@ -137,7 +133,7 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
                </div>
 
                {lote.status === 'ativo' ? (
-                 <button onClick={() => { setSelectedLote(lote); setIsFinalizeModalOpen(true); }} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-red-100">Finalizar Arremate</button>
+                 <button onClick={() => { setSelectedLote(lote); setIsFinalizeModalOpen(true); }} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Finalizar Arremate</button>
                ) : (
                  <div className="bg-green-50 p-4 rounded-2xl border border-green-100 flex items-center gap-3">
                     <Trophy className="text-green-600" size={24} />
@@ -152,11 +148,10 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
         ))}
       </div>
 
-      {/* Modal Novo Lote */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden p-8">
-            <h4 className="text-2xl font-black mb-6 uppercase italic tracking-tighter">Novo Lote de Leilão</h4>
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md p-8">
+            <h4 className="text-2xl font-black mb-6 uppercase italic tracking-tighter">Novo Lote Firebase</h4>
             <form onSubmit={handleSave} className="space-y-4">
               <div className="flex items-center justify-center w-full">
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-200 border-dashed rounded-3xl cursor-pointer bg-gray-50 hover:bg-gray-100 overflow-hidden relative">
@@ -185,8 +180,7 @@ const Leilao: React.FC<LeilaoProps> = ({ lotes, setLotes }) => {
         </div>
       )}
 
-      {/* Modal Finalizar */}
-      {isFinalizeModalOpen && (
+      {isFinalizeModalOpen && selectedLote && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-sm p-8">
             <h4 className="text-2xl font-black mb-6 uppercase italic text-green-600">Arrematar Item</h4>

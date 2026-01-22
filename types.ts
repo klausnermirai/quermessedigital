@@ -144,6 +144,17 @@ export interface Servico {
   categoria: string;
 }
 
+export interface Oficio {
+  id: string;
+  protocolo: string;
+  destino: string;
+  responsavel: string;
+  tipo: 'Insumos' | 'Prendas' | 'Financeiro' | 'Serviços';
+  status: 'Pendente' | 'Entregue' | 'Aprovado' | 'Recusado';
+  dataEnvio: string;
+  descricao: string;
+}
+
 export type View = 
   | 'DASHBOARD' 
   | 'CONFIG' 
