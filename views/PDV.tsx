@@ -1,9 +1,9 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Trash2, Printer, Search, Plus, Minus, CreditCard, 
   Banknote, QrCode, Maximize2, Minimize2, Utensils, Monitor, 
-  Smartphone, LogOut, ChevronRight, X, DollarSign, Calculator, ArrowRight, 
+  ChevronRight, X, DollarSign, Calculator, ArrowRight, 
   Ticket, RotateCcw
 } from 'lucide-react';
 import { Product, Order, PaymentEntry, UserRole, PaymentMethod } from '../types';
@@ -16,18 +16,16 @@ interface PDVProps {
   cashierName: string | null;
   setCashierName: (name: string | null) => void;
   userRole: UserRole;
-  onLogout: () => void;
   categories: string[];
 }
 
-const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFullScreen, cashierName, setCashierName, userRole, onLogout, categories }) => {
+const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFullScreen, cashierName, setCashierName, userRole, categories }) => {
   const [cart, setCart] = useState<{ productId: string; quantity: number }[]>([]);
   const [filter, setFilter] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Tudo');
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   
-  // Estados para o formulário de pagamento atual
   const [currentPaymentMethod, setCurrentPaymentMethod] = useState<PaymentMethod | null>(null);
   const [amountToPay, setAmountToPay] = useState<string>('');
   const [receivedAmount, setReceivedAmount] = useState<string>('');
@@ -40,7 +38,6 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
   const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
   const remainingToPay = Math.max(0, cartTotal - totalPaid);
   
-  // Cálculo de troco baseado no último pagamento em dinheiro ou no total acumulado
   const changeAmount = useMemo(() => {
     const cashPayments = payments.filter(p => p.method === 'Dinheiro');
     if (cashPayments.length === 0) return 0;
@@ -137,7 +134,6 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
 
   return (
     <div className={`flex flex-col gap-6 transition-all ${isFullScreen ? 'h-screen p-6' : 'h-[calc(100vh-140px)]'}`}>
-      {/* Top Header do PDV */}
       <div className="bg-white p-4 px-8 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-3 shrink-0">
@@ -172,17 +168,15 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
             {isFullScreen ? "Sair Tela Cheia" : "Tela Cheia"}
           </button>
           <button 
-            onClick={onLogout}
-            className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all"
-            title="Sair do Caixa"
+            onClick={() => setCashierName(null)}
+            className="p-3 bg-gray-50 text-gray-400 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all font-black text-[9px] uppercase"
           >
-            <LogOut size={18} />
+            Fechar Caixa
           </button>
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden">
-        {/* Lado Esquerdo: Produtos */}
         <div className="flex-1 flex flex-col gap-6 overflow-hidden">
           <div className="flex items-center gap-4">
             <div className="relative flex-1">
@@ -227,7 +221,6 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
           </div>
         </div>
 
-        {/* Lado Direito: Carrinho e Checkout */}
         <div className="w-full lg:w-[450px] bg-white rounded-[3.5rem] shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-right-10">
           {!showCheckout ? (
             <>
@@ -292,7 +285,6 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-                {/* Resumo de Valores */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100">
                     <p className="text-[9px] font-black text-gray-400 uppercase mb-1 tracking-widest">Total</p>
@@ -304,7 +296,6 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
                   </div>
                 </div>
 
-                {/* Métodos de Pagamento */}
                 <div className="space-y-4">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Selecione o Meio</p>
                   <div className="grid grid-cols-3 gap-2">
@@ -330,7 +321,6 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
                   </div>
                 </div>
 
-                {/* Formulário de Adição de Pagamento */}
                 {currentPaymentMethod && remainingToPay > 0 && (
                   <div className="bg-white border-2 border-gray-100 rounded-[2.5rem] p-6 space-y-6 shadow-xl animate-in fade-in zoom-in">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -376,7 +366,6 @@ const PDV: React.FC<PDVProps> = ({ products, onAddOrder, isFullScreen, toggleFul
                   </div>
                 )}
 
-                {/* Listagem de Pagamentos Lançados */}
                 <div className="space-y-3">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Lançamentos</p>
                   {payments.map((p, idx) => (

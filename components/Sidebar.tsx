@@ -2,7 +2,7 @@
 import React from 'react';
 import { 
   LayoutDashboard, Settings, FileText, Heart, Package, ShoppingCart, 
-  Wrench, Wallet, Gavel, Users, Utensils, Monitor, Landmark, FileBarChart, X, LogOut, Landmark as Bank
+  Wrench, Wallet, Gavel, Users, Utensils, Monitor, Landmark, FileBarChart, X, Landmark as Bank
 } from 'lucide-react';
 import { View, User, UserRole } from '../types';
 
@@ -16,7 +16,6 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setOpen, currentView, setView, user, eventName }) => {
-  // Usuários de PDV não devem acessar o menu lateral
   if (user.role === UserRole.PDV || user.role === UserRole.PDV_MOBILE) {
     return null;
   }
@@ -84,16 +83,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setOpen, currentView, setView
           </nav>
 
           <div className="p-6 border-t border-gray-100 bg-gray-50/50">
-            <div className="flex items-center gap-3 mb-4">
-               <div className="w-8 h-8 bg-white border rounded-full flex items-center justify-center text-gray-400"><Users size={14} /></div>
-               <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-gray-900 uppercase truncate">{user.name}</p>
-                  <p className="text-[8px] font-bold text-red-600 uppercase tracking-widest">{user.role}</p>
-               </div>
-            </div>
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Suporte Quermesse</p>
-              <p className="text-[10px] text-gray-600 font-medium leading-tight">Problemas com o PDV? Fale com a TI da paróquia.</p>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Painel Administrativo</p>
+              <p className="text-[10px] text-gray-600 font-medium leading-tight">Você está operando em modo de acesso direto.</p>
             </div>
           </div>
         </div>
